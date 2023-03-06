@@ -22,20 +22,13 @@ conn = sqlite3.connect("network_monitor_" + network.replace("/", "_") + ".db")
 c = conn.cursor()
 
 # create tables if they do not exist
-c.execute("""CREATE TABLE IF NOT EXISTS active_devices (
+c.execute("""CREATE TABLE IF NOT EXISTS devices (
                 mac TEXT PRIMARY KEY,
                 ip TEXT,
                 hostname TEXT,
-                last_seen INTEGER,
-                first_seen INTEGER,
-                FOREIGN KEY (mac) REFERENCES devices(mac)
-            )""")
-c.execute("""CREATE TABLE IF NOT EXISTS devices (
-                mac TEXT PRIMARY KEY,
-                hostname TEXT,
                 first_seen INTEGER,
                 last_seen INTEGER,
-                last_state TEXT
+                status TEXT
             )""")
 c.execute("""CREATE TABLE IF NOT EXISTS connection_log (
                 mac TEXT,
@@ -75,8 +68,8 @@ def update_active_devices():
         except:
             hostname = None
 
-        # set last state to connected
-        last_state = "connected"
+        # set last state to online
+        status = "online"
 
         # check if the device is already in the devices table
         c.execute("SELECT * FROM devices WHERE mac=?", (mac_address,))
@@ -84,24 +77,12 @@ def update_active_devices():
 
         # if the device is not in the devices table, add it
         if result is None:
-            c.execute("INSERT INTO devices VALUES (?, ?, ?, ?, ?)", (mac_address, hostname, timestamp, timestamp, last_state))
-
-        # add/update the device in the active_devices table
-        c.execute("SELECT * FROM active_devices WHERE mac=?", (mac_address,))
-        result = c.fetchone()
-
-        if result is None:
-            c.execute("INSERT INTO active_devices VALUES (?, ?, ?, ?, ?)", (mac_address, host, hostname, timestamp, timestamp))
+            c.execute("INSERT INTO devices VALUES (?, ?, ?, ?, ?, ?)", (mac_address, host, hostname, timestamp, timestamp, status))
         else:
-            c.execute("UPDATE active_devices SET ip=?, hostname=?, last_seen=? WHERE mac=?", (host, hostname, timestamp, mac_address))
-            
-        # set last state to connected
-        last_state = "connected"
-        c.execute("UPDATE devices SET last_seen=?, last_state=? WHERE mac=?", (timestamp, last_state, mac_address))
+            c.execute("UPDATE devices SET ip=?, hostname=?, last_seen=?, status=? WHERE mac=?", (host, hostname, timestamp, status, mac_address))
 
-    # delete devices from the active_devices table that are no longer active and set them to disconnected on the devices table
-    c.execute("DELETE FROM active_devices WHERE last_seen<?", (timestamp - 60,))
-    c.execute("UPDATE devices SET last_state=? WHERE last_seen<?", ("disconnected", timestamp - 60))
+    # set device to offline if it has not been seen in the last 60 seconds
+    c.execute("UPDATE devices SET status=? WHERE last_seen<?", ("offline", timestamp - 60))
     
     # commit changes to the database
     conn.commit()
@@ -111,8 +92,6 @@ def log_connection_changes():
     # query the devices table
     c.execute("SELECT * FROM devices")
     devices = c.fetchall()
-    c.execute("SELECT * FROM active_devices")
-    active_devices = c.fetchall()
 
     # iterate through each device
     for device in devices:
@@ -121,27 +100,27 @@ def log_connection_changes():
 
         # check if the device is active
         active = False
-        for active_device in active_devices:
-            if active_device[0] == mac_address:
-                active = True
-                break
+        c.execute("SELECT * FROM devices WHERE mac=? AND status=?", (mac_address, "online"))
+        result = c.fetchone()
+        if result is not None:
+            active = True
 
         # get the last state from the connection log
         c.execute("SELECT * FROM connection_log WHERE mac=? ORDER BY timestamp DESC LIMIT 1", (mac_address,))
         result = c.fetchone()
         if result is None:
-            last_state = None
+            last_state = "offline"
         else:
             last_state = result[2]
 
-        # if the device is active and the last state was disconnected, log a connection
-        if active and last_state == "disconnected":
-            c.execute("INSERT INTO connection_log VALUES (?, ?, ?, ?)", (mac_address, device[1], "connected", timestamp))
+        # if the device is active and the last state was offline, log a connection
+        if active and last_state == "offline":
+            c.execute("INSERT INTO connection_log VALUES (?, ?, ?, ?)", (mac_address, device[1], "online", timestamp))
 
-        # if the device is not active and the last state was connected, log a disconnection
-        if not active and last_state == "connected":
-            c.execute("INSERT INTO connection_log VALUES (?, ?, ?, ?)", (mac_address, device[1], "disconnected", timestamp))
-            c.execute("UPDATE devices SET last_seen=?, last_state=? WHERE mac=?", (timestamp, "disconnected", mac_address))
+        # if the device is not active and the last state was online, log a disconnection
+        if not active and last_state == "online":
+            c.execute("INSERT INTO connection_log VALUES (?, ?, ?, ?)", (mac_address, device[1], "offline", timestamp))
+            c.execute("UPDATE devices SET last_seen=?, status=? WHERE mac=?", (timestamp, "offline", mac_address))
 
     # commit changes to the database
     conn.commit()
@@ -158,25 +137,26 @@ influx_db = os.getenv("INFLUX_DB") or "network_monitor"
 influx_client = influxdb.InfluxDBClient(host=influx_host, port=influx_port, database=influx_db)
 influx_client.create_database(influx_db)
 
-# query the active_devices table
-c.execute("SELECT * FROM active_devices")
-active_devices = c.fetchall()
+# query the active devices table
+c.execute("SELECT * FROM devices")
+devices = c.fetchall()
 
 # iterate through each active device
-for active_device in active_devices:
+for device in devices:
     # create a dictionary for the influxdb point
     point = {
-        "measurement": "active_devices",
+        "measurement": "devices",
         "tags": {
-            "mac": active_device[0],
-            "ip": active_device[1],
-            "hostname": active_device[2],
+            "mac": device[0],
             "network": network
         },
-        "time": active_device[3] * 1000000000,
+        "time": device[3] * 1000000000,
         "fields": {
-            "last_seen": datetime.datetime.fromtimestamp(active_device[3]).strftime('%Y-%m-%d %H:%M:%S'),
-            "first_seen": datetime.datetime.fromtimestamp(active_device[4]).strftime('%Y-%m-%d %H:%M:%S')
+            "ip": device[1],
+            "hostname": device[2],
+            "last_seen": datetime.datetime.fromtimestamp(device[3]).strftime('%Y-%m-%d %H:%M:%S'),
+            "first_seen": datetime.datetime.fromtimestamp(device[4]).strftime('%Y-%m-%d %H:%M:%S'),
+            "status": device[5]
         }
     }
     # write the point to influxdb
@@ -194,12 +174,12 @@ for log_entry in connection_log:
         "measurement": "connection_log",
         "tags": {
             "mac": log_entry[0],
-            "hostname": log_entry[1],
-            "connection_status": log_entry[2],
             "network": network
         },
         "time": log_entry[3] * 1000000000,
         "fields": {
+            "hostname": log_entry[1],
+            "connection_status": log_entry[2],
             "timestamp": datetime.datetime.fromtimestamp(log_entry[3]).strftime('%Y-%m-%d %H:%M:%S')
         }
     }
