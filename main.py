@@ -32,10 +32,10 @@ c.execute("""CREATE TABLE IF NOT EXISTS devices (
             )""")
 c.execute("""CREATE TABLE IF NOT EXISTS connection_log (
                 mac TEXT,
-                hostname TEXT,
                 ip TEXT,
-                connection_status TEXT,
+                hostname TEXT,
                 timestamp INTEGER,
+                status TEXT,
                 FOREIGN KEY (mac) REFERENCES devices(mac)
             )""")
 
@@ -112,15 +112,15 @@ def log_connection_changes():
         if result is None:
             last_state = "offline"
         else:
-            last_state = result[2]
+            last_state = result[4]
 
         # if the device is active and the last state was offline, log a connection
         if active and last_state == "offline":
-            c.execute("INSERT INTO connection_log VALUES (?, ?, ?, ?, ?)", (mac_address, device[2], device[1], "online", timestamp))
+            c.execute("INSERT INTO connection_log VALUES (?, ?, ?, ?, ?)", (mac_address, device[1], device[2], timestamp, "online"))
 
         # if the device is not active and the last state was online, log a disconnection
         if not active and last_state == "online":
-            c.execute("INSERT INTO connection_log VALUES (?, ?, ?, ?, ?)", (mac_address, device[2], device[1], "offline", timestamp))
+            c.execute("INSERT INTO connection_log VALUES (?, ?, ?, ?, ?)", (mac_address, device[1], device[2], timestamp, "offline"))
             c.execute("UPDATE devices SET last_seen=?, status=? WHERE mac=?", (timestamp, "offline", mac_address))
 
     # commit changes to the database
@@ -179,10 +179,10 @@ for log_entry in connection_log:
         },
         "time": log_entry[4] * 1000000000,
         "fields": {
-            "hostname": log_entry[1],
-            "ip": log_entry[2],
-            "connection_status": log_entry[3],
-            "timestamp": datetime.datetime.fromtimestamp(log_entry[4]).strftime('%Y-%m-%d %H:%M:%S')
+            "hostname": log_entry[2],
+            "ip": log_entry[1],
+            "connection_status": log_entry[4],
+            "timestamp": datetime.datetime.fromtimestamp(log_entry[3]).strftime('%Y-%m-%d %H:%M:%S')
         }
     }
 
