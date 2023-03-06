@@ -47,7 +47,12 @@ def get_mac_address(ip):
         mac_address = output[2]
         return mac_address
     except:
-        return None
+        output = subprocess.check_output(["ip", "a"])
+        output = output.decode("utf-8").split("\n")
+        for idx, line in enumerate(output):
+            if ip in line:
+                mac_address = output[idx-1].split()[1]
+                return mac_address
 
 # function to update the active_devices table
 def update_active_devices():
