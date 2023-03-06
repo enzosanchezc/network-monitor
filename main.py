@@ -99,8 +99,9 @@ def update_active_devices():
         last_state = "connected"
         c.execute("UPDATE devices SET last_seen=?, last_state=? WHERE mac=?", (timestamp, last_state, mac_address))
 
-    # delete devices from the active_devices table that are no longer active
+    # delete devices from the active_devices table that are no longer active and set them to disconnected on the devices table
     c.execute("DELETE FROM active_devices WHERE last_seen<?", (timestamp - 60,))
+    c.execute("UPDATE devices SET last_state=? WHERE last_seen<?", ("disconnected", timestamp - 60))
     
     # commit changes to the database
     conn.commit()
@@ -125,8 +126,13 @@ def log_connection_changes():
                 active = True
                 break
 
-        # get the last state
-        last_state = device[4]
+        # get the last state from the connection log
+        c.execute("SELECT * FROM connection_log WHERE mac=? ORDER BY timestamp DESC LIMIT 1", (mac_address,))
+        result = c.fetchone()
+        if result is None:
+            last_state = None
+        else:
+            last_state = result[2]
 
         # if the device is active and the last state was disconnected, log a connection
         if active and last_state == "disconnected":
