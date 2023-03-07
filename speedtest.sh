@@ -21,7 +21,7 @@ if ! curl -s "http://$INFLUX_HOST:$INFLUX_PORT/query?q=SHOW+DATABASES" | jq '.re
 	echo "Influx DB created"
 fi
 
-if [ -z "$SPEEDTEST_SERVER"]; then
+if [ -z "$SPEEDTEST_SERVER" ]; then
 	curl -s -XPOST "http://$INFLUX_HOST:$INFLUX_PORT/write?db=$INFLUX_DB" --data-binary "speedtest provider=\"$PROVIDER\",ip=\"$PUBLIC_IP\",server=\"Unrechable\",distance=0,latency=0,download=0,upload=0"
 else
 	curl -s -XPOST "http://$INFLUX_HOST:$INFLUX_PORT/write?db=$INFLUX_DB" --data-binary "speedtest provider=\"$PROVIDER\",ip=\"$PUBLIC_IP\",server=\"$SPEEDTEST_SERVER\",distance=$SERVER_DISTANCE,latency=$PING,download=$DOWNLOAD,upload=$UPLOAD"
