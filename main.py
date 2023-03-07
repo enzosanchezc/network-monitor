@@ -41,15 +41,14 @@ c.execute("""CREATE TABLE IF NOT EXISTS connection_log (
 
 # function to get the MAC address using ARP
 def get_mac_address(ip):
-    try:
-        output = subprocess.check_output(["arp", "-n", ip])
-        output = output.decode("utf-8").strip().split("\n")[-1].split()
-        mac_address = output[2]
+    output = subprocess.check_output(["arp", "-n", ip])
+    output = output.decode("utf-8").strip().split("\n")[-1].split()
+    mac_address = output[2]
+    if mac_address != "--":
         return mac_address
-    except:
-        output = subprocess.check_output(["ip", "a"])
-        output = output.decode("utf-8").split("\n")
-        for idx, line in enumerate(output):
+    output = subprocess.check_output(["ip", "a"])
+    output = output.decode("utf-8").split("\n")
+    for idx, line in enumerate(output):
             if ip in line:
                 mac_address = output[idx-1].split()[1]
                 return mac_address
@@ -182,15 +181,13 @@ for log_entry in connection_log:
             "mac": log_entry[0],
             "network": network
         },
-        "time": log_entry[4] * 1000000000,
+        "time": log_entry[3] * 1000000000,
         "fields": {
             "hostname": log_entry[2],
             "ip": log_entry[1],
-            "connection_status": log_entry[4],
-            "timestamp": datetime.datetime.fromtimestamp(log_entry[3]).strftime('%Y-%m-%d %H:%M:%S')
+            "connection_status": log_entry[4]
         }
     }
-
     # write the point to influxdb
     influx_client.write_points([point])
 
