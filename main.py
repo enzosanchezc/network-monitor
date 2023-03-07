@@ -29,14 +29,6 @@ c.execute("""CREATE TABLE IF NOT EXISTS devices (
                 last_seen INTEGER,
                 status TEXT
             )""")
-c.execute("""CREATE TABLE IF NOT EXISTS connection_log (
-                mac TEXT,
-                ip TEXT,
-                hostname TEXT,
-                timestamp INTEGER,
-                status TEXT,
-                FOREIGN KEY (mac) REFERENCES devices(mac)
-            )""")
 
 # function to update the devices table
 def update_devices():
@@ -73,47 +65,8 @@ def update_devices():
     # commit changes to the database
     conn.commit()
 
-# function to log connection changes
-def log_connection_changes():    
-    # query the devices table
-    c.execute("SELECT * FROM devices")
-    devices = c.fetchall()
-
-    # iterate through each device
-    for device in devices:
-        # get the MAC address
-        mac_address = device[0]
-
-        # check if the device is active
-        active = False
-        c.execute("SELECT * FROM devices WHERE mac=? AND status=?", (mac_address, "online"))
-        result = c.fetchone()
-        if result is not None:
-            active = True
-
-        # get the last state from the connection log
-        c.execute("SELECT * FROM connection_log WHERE mac=? ORDER BY timestamp DESC LIMIT 1", (mac_address,))
-        result = c.fetchone()
-        if result is None:
-            last_state = "offline"
-        else:
-            last_state = result[4]
-
-        # if the device is active and the last state was offline, log a connection
-        if active and last_state == "offline":
-            c.execute("INSERT INTO connection_log VALUES (?, ?, ?, ?, ?)", (mac_address, device[1], device[2], timestamp, "online"))
-
-        # if the device is not active and the last state was online, log a disconnection
-        if not active and last_state == "online":
-            c.execute("INSERT INTO connection_log VALUES (?, ?, ?, ?, ?)", (mac_address, device[1], device[2], timestamp, "offline"))
-            c.execute("UPDATE devices SET last_seen=?, status=? WHERE mac=?", (timestamp, "offline", mac_address))
-
-    # commit changes to the database
-    conn.commit()
-
 # update the active_devices table and log connection changes 
 update_devices()
-log_connection_changes()
 
 # insert active_devices into influx measument named "active_devices"
 influx_host = os.getenv("INFLUX_HOST") or "localhost"
