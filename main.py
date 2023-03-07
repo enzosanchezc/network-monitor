@@ -2,7 +2,6 @@ import datetime
 import nmap
 import sqlite3
 import influxdb
-import subprocess
 import time
 import os
 from dotenv import load_dotenv
@@ -39,32 +38,15 @@ c.execute("""CREATE TABLE IF NOT EXISTS connection_log (
                 FOREIGN KEY (mac) REFERENCES devices(mac)
             )""")
 
-# function to get the MAC address using ARP
-def get_mac_address(ip):
-    output = subprocess.check_output(["arp", "-n", ip])
-    output = output.decode("utf-8").strip().split("\n")[-1].split()
-    mac_address = output[2]
-    if mac_address != "--":
-        return mac_address
-    try:
-        output = subprocess.check_output(["ip", "a"])
-        output = output.decode("utf-8").split("\n")
-        for idx, line in enumerate(output):
-                if ip in line:
-                    mac_address = output[idx-1].split()[1]
-                    return mac_address
-    except:
-        return "00:00:00:00:00:00"
-
-# function to update the active_devices table
-def update_active_devices():
+# function to update the devices table
+def update_devices():
     # scan the network for active hosts using nmap ping scan
-    nm.scan(hosts=network, arguments="-sn")
+    nm.scan(hosts=network, arguments="-sn --privileged")
 
     # iterate through each host found by nmap
     for host in nm.all_hosts():
-        # get the MAC address using ARP
-        mac_address = get_mac_address(host)
+        # get the MAC address
+        mac_address = nm[host]["addresses"]["mac"] if "mac" in nm[host]["addresses"] else "00:00:00:00:00:00"
 
         # get the hostname if available
         try:
@@ -130,7 +112,7 @@ def log_connection_changes():
     conn.commit()
 
 # update the active_devices table and log connection changes 
-update_active_devices()
+update_devices()
 log_connection_changes()
 
 # insert active_devices into influx measument named "active_devices"
