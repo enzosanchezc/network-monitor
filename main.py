@@ -154,7 +154,7 @@ for device in devices:
             "mac": device[0],
             "network": network
         },
-        "time": device[3] * 1000000000,
+        "time": device[4] * 1000000000,
         "fields": {
             "ip": device[1],
             "hostname": device[2],
