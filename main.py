@@ -63,10 +63,6 @@ def update_active_devices():
         # get the MAC address using ARP
         mac_address = get_mac_address(host)
 
-        # if the MAC address is not found, skip this host
-        if mac_address is None:
-            continue
-
         # get the hostname if available
         try:
             hostname = nm[host].hostname()
