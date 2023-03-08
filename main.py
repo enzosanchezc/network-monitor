@@ -50,7 +50,7 @@ def get_self_mac():
     output = subprocess.check_output("ip a show dev " + dev, shell=True).decode("utf-8").split("\n")
     for line in output:
         if "link/ether" in line:
-            return line.split()[1]
+            return line.split()[1].upper()
     return "00:00:00:00:00:00"
 
 
