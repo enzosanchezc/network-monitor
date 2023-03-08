@@ -1,4 +1,5 @@
 import datetime
+import subprocess
 import nmap
 import sqlite3
 import influxdb
@@ -39,6 +40,20 @@ c.execute("""CREATE TABLE IF NOT EXISTS devices (
             )""")
 
 
+def get_self_mac():
+    # get the MAC address of the device running the script
+    dev = "eth0"
+    routes = subprocess.check_output("ip r", shell=True).decode("utf-8").split("\n")
+    for route in routes:
+        if ".".join("192.168.192.0/24".split('/')[0].split('.')[:-1]) in route:
+            dev = route.split('dev')[1].split()[0]
+    output = subprocess.check_output("ip a show dev " + dev, shell=True).decode("utf-8").split("\n")
+    for line in output:
+        if "link/ether" in line:
+            return line.split()[1]
+    return "00:00:00:00:00:00"
+
+
 # function to update the devices table
 def update_devices():
     # scan the network for active hosts using nmap ping scan
@@ -47,7 +62,7 @@ def update_devices():
     # iterate through each host found by nmap
     for host in nm.all_hosts():
         # get the MAC address
-        mac_address = nm[host]["addresses"]["mac"] if "mac" in nm[host]["addresses"] else "00:00:00:00:00:00"
+        mac_address = nm[host]["addresses"]["mac"] if "mac" in nm[host]["addresses"] else get_self_mac()
 
         # get the hostname if available
         try:
