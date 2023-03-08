@@ -35,7 +35,7 @@ c.execute("""CREATE TABLE IF NOT EXISTS devices (
                 hostname TEXT,
                 first_seen INTEGER,
                 last_seen INTEGER,
-                status TEXT
+                status INTEGER
             )""")
 
 
@@ -56,7 +56,7 @@ def update_devices():
             hostname = None
 
         # set last state to online
-        status = "online"
+        status = 1
 
         # check if the device is already in the devices table
         c.execute("SELECT * FROM devices WHERE mac=?", (mac_address,))
@@ -72,7 +72,7 @@ def update_devices():
 
     # set device to offline if it has not been seen in the last 60 seconds
     c.execute("UPDATE devices SET status=? WHERE last_seen<?",
-              ("offline", timestamp - 60))
+              (0, timestamp - 60))
 
     # commit changes to the database
     conn.commit()
