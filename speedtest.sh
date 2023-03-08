@@ -18,7 +18,7 @@ SERVER_LAT=$(jq .server.lat $FILENAME)
 SERVER_LON=$(jq .server.lon $FILENAME)
 SERVER_CC=$(jq .server.cc $FILENAME)
 SERVER_DISTANCE=$(jq .server.d $FILENAME)
-PING=$(jq .server.latency $FILENAME)
+PING=$(jq .ping $FILENAME)
 DOWNLOAD=$(jq .download $FILENAME)
 UPLOAD=$(jq .upload $FILENAME)
 
