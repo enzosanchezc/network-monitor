@@ -64,18 +64,18 @@ def update_devices():
         # get the MAC address
         mac_address = nm[host]["addresses"]["mac"] if "mac" in nm[host]["addresses"] else get_self_mac()
 
-        # get the hostname if available
-        try:
-            hostname = nm[host].hostname()
-        except:
-            hostname = None
+        # check if the device is already in the devices table
+        c.execute("SELECT * FROM devices WHERE mac=?", (mac_address,))
+        result = c.fetchone()
 
         # set last state to online
         status = 1
 
-        # check if the device is already in the devices table
-        c.execute("SELECT * FROM devices WHERE mac=?", (mac_address,))
-        result = c.fetchone()
+        # get the hostname if available
+        try:
+            hostname = nm[host].hostname()
+        except:
+            hostname = result[2]
 
         # if the device is not in the devices table, add it
         if result is None:
