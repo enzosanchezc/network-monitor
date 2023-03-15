@@ -72,9 +72,9 @@ def update_devices():
         status = 1
 
         # get the hostname if available
-        try:
+        if nm[host].hostname() != "":
             hostname = nm[host].hostname()
-        except:
+        else:
             hostname = result[2]
 
         # if the device is not in the devices table, add it
